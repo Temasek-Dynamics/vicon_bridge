@@ -9,6 +9,7 @@ find_package(catkin REQUIRED COMPONENTS
     geometry_msgs
     roscpp
     tf
+    tf2
     diagnostic_updater
 )
 

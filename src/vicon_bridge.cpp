@@ -43,6 +43,7 @@
 #include <tf/transform_broadcaster.h>
 #include <tf/transform_listener.h>
 #include <geometry_msgs/TransformStamped.h>
+#include <geometry_msgs/PoseStamped.h>
 #include <vicon_bridge/viconGrabPose.h>
 #include <vicon_bridge/Markers.h>
 #include <vicon_bridge/Marker.h>
@@ -53,6 +54,9 @@
 
 #include <diagnostic_updater/diagnostic_updater.h>
 #include <diagnostic_updater/update_functions.h>
+
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf2_ros/transform_listener.h>
 
 using std::min;
 using std::max;
@@ -165,6 +169,7 @@ private:
   string tracked_frame_suffix_;
   // Publisher
   ros::Publisher marker_pub_;
+  ros::Publisher Remap_Px4_Pub_;
   // TF Broadcaster
   tf::TransformBroadcaster tf_broadcaster_;
   //geometry_msgs::PoseStamped vicon_pose;
@@ -194,6 +199,10 @@ private:
   std::vector<std::string> time_log_;
 
   Client vicon_client_;
+  tf2_ros::Buffer tf_buffer;
+ // tf2_ros::TransformListener tf2_listener(tf_buffer);
+  geometry_msgs::TransformStamped vicon_to_px4;
+
 
 public:
   void startGrabbing()
@@ -245,7 +254,10 @@ public:
     calibrate_segment_server_ = nh_priv.advertiseService("calibrate_segment", &ViconReceiver::calibrateSegmentCallback,
                                                          this);
 
-    // Publishers
+    // Publisher
+    Remap_Px4_Pub_ = nh.advertise<geometry_msgs::PoseStamped>("mavros/vision_pose/pose",10); 
+	
+    tf2_ros::TransformListener tf2_listener(tf_buffer);
     if(publish_markers_)
     {
       marker_pub_ = nh.advertise<vicon_bridge::Markers>(tracked_frame_suffix_ + "/markers", 10);
@@ -508,6 +520,33 @@ private:
                   {
                     tf::transformStampedTFToMsg(transforms.back(), *pose_msg);
                     seg.pub.publish(pose_msg);
+
+		    geometry_msgs::PoseStamped vicon_pose_px4;
+
+		    vicon_pose_px4.header.stamp = frame_time;
+		    
+		    vicon_pose_px4.pose.orientation = pose_msg->transform.rotation;
+		    vicon_pose_px4.pose.position.x = pose_msg->transform.translation.x;
+		    vicon_pose_px4.pose.position.y = pose_msg->transform.translation.y;
+		    vicon_pose_px4.pose.position.z = pose_msg->transform.translation.z;
+		   // Remap_Px4_Pub_.publish(vicon_pose_px4);
+
+		    
+
+		    
+		    
+		    //tf2_ros::Buffer tf_buffer;
+		    //tf2_ros::TransformListener tf2_listener(tf_buffer);
+		    //geometry_msgs::TransformStamped vicon_to_px4;
+		    vicon_to_px4 = tf_buffer.lookupTransform("vicon/world","odom",ros::Time(0),ros::Duration(1.0));
+	            	
+		    
+		    tf2::doTransform(vicon_pose_px4,vicon_pose_px4,vicon_to_px4);
+		    vicon_pose_px4.header.stamp = frame_time;
+		    Remap_Px4_Pub_.publish(vicon_pose_px4);
+
+
+
                   }
                 }
               }
